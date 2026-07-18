@@ -180,7 +180,7 @@ async function loadDashboardData() {
   const medicinesQuery = query(collection(db, 'medicines'), orderBy('name'));
   const requestsQuery = currentUser.role === 'admin'
     ? query(collection(db, 'requests'), orderBy('createdAt', 'desc'))
-    : query(collection(db, 'requests'), where('userId', '==', currentUser.id), orderBy('createdAt', 'desc'));
+    : query(collection(db, 'requests'), where('userId', '==', currentUser.id));
 
   inventory = [];
   requests = [];
@@ -199,6 +199,7 @@ async function loadDashboardData() {
     renderDashboard();
   }, (error) => {
     console.error('Request snapshot failed:', error);
+    showAlert('Unable to load requests: ' + error.message);
   });
 
   try {
@@ -214,6 +215,7 @@ async function loadDashboardData() {
     sortRequests();
   } catch (error) {
     console.error('Initial requests load failed:', error);
+    showAlert('Unable to load your requests: ' + error.message);
   }
 
   renderDashboard();
@@ -371,17 +373,29 @@ function renderDashboard() {
   elements.userPanel.classList.toggle('hidden', isAdmin);
   elements.adminPanel.classList.toggle('hidden', !isAdmin);
 
+  if (requests.length === 0) {
+    elements.requestsTable.innerHTML = `
+      <tr>
+        <td colspan="5" class="empty-row">No requests found.</td>
+      </tr>`;
+    return;
+  }
+
   elements.requestsTable.innerHTML = requests.map(request => {
-    const statusClass = request.status === 'Approved' ? 'success' : request.status === 'Pending' ? 'pending' : 'warning';
-    const actionCell = isAdmin && request.status === 'Pending'
+    const status = request.status || 'Pending';
+    const statusClass = status === 'Approved' ? 'success' : status === 'Pending' ? 'pending' : 'warning';
+    const actionCell = isAdmin && status === 'Pending'
       ? `<button class="btn btn-secondary request-button" onclick="approveRequest('${request.id}')">Approve</button>`
       : '-';
+    const userName = request.userName || request.user || 'Unknown';
+    const medicineName = request.medicineName || request.medicine || 'Unknown';
+    const quantity = request.quantity || request.qty || 0;
     return `
       <tr>
-        <td>${request.userName}</td>
-        <td>${request.medicineName}</td>
-        <td>${request.quantity}</td>
-        <td><span class="badge-pill ${statusClass}">${request.status}</span></td>
+        <td>${userName}</td>
+        <td>${medicineName}</td>
+        <td>${quantity}</td>
+        <td><span class="badge-pill ${statusClass}">${status}</span></td>
         <td>${actionCell}</td>
       </tr>`;
   }).join('');
