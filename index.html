@@ -20,17 +20,19 @@
       <section id="loginSection" class="card panel">
         <h2>Login</h2>
         <div class="field-group">
-          <label for="loginRole">Select role</label>
-          <select id="loginRole">
-            <option value="user">User</option>
-            <option value="admin">Admin</option>
-          </select>
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" placeholder="Enter your email" />
         </div>
         <div class="field-group">
-          <label for="loginName">Name</label>
-          <input id="loginName" type="text" placeholder="Enter your name" />
+          <label for="loginPassword">Password</label>
+          <input id="loginPassword" type="password" placeholder="Enter your password" />
         </div>
-        <button id="loginButton" class="btn btn-primary">Enter Dashboard</button>
+        <div class="login-actions">
+          <button id="loginButton" class="btn btn-primary">Sign In</button>
+          <button id="signupButton" type="button" class="btn btn-secondary">Sign Up</button>
+        </div>
+        <div class="divider">or</div>
+        <button id="googleLoginButton" class="btn btn-primary">Continue with Google</button>
       </section>
 
       <section id="dashboardSection" class="hidden">
@@ -140,6 +142,6 @@
     </main>
   </div>
 
-  <script src="script.js"></script>
+  <script type="module" src="script.js"></script>
 </body>
 </html>

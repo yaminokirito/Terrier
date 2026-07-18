@@ -1,0 +1,16 @@
+{
+  "name": "terrier-inventory",
+  "version": "1.0.0",
+  "description": "Pest solution inventory with backend API and user authentication.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.4",
+    "firebase": "^12.16.0",
+    "jsonwebtoken": "^9.0.0"
+  }
+}

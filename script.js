@@ -1,169 +1,340 @@
-const adminCredentials = { role: 'admin', name: 'Admin' };
-const defaultMedicines = [
-  { id: 1, name: 'Fipronil', stock: 16 },
-  { id: 2, name: 'Imidacloprid', stock: 9 },
-  { id: 3, name: 'Deltamethrin', stock: 0 },
-  { id: 4, name: 'Cypermethrin', stock: 3 }
-];
+import { firebaseConfig } from './firebaseConfig.js';
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  onAuthStateChanged,
+  signOut
+} from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js';
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  where,
+  orderBy,
+  addDoc,
+  setDoc,
+  updateDoc,
+  serverTimestamp
+} from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
 
-const storage = {
-  load(key, fallback) {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  },
-  save(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
-  }
-};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
 
 const elements = {
   loginSection: document.getElementById('loginSection'),
   dashboardSection: document.getElementById('dashboardSection'),
-  userBadge: document.getElementById('userBadge'),
-  loginRole: document.getElementById('loginRole'),
-  loginName: document.getElementById('loginName'),
+  loginEmail: document.getElementById('loginEmail'),
+  loginPassword: document.getElementById('loginPassword'),
   loginButton: document.getElementById('loginButton'),
+  signupButton: document.getElementById('signupButton'),
+  googleLoginButton: document.getElementById('googleLoginButton'),
   logoutButton: document.getElementById('logoutButton'),
-  statTotal: document.getElementById('statTotal'),
-  statInStock: document.getElementById('statInStock'),
-  statOutOfStock: document.getElementById('statOutOfStock'),
-  inventoryTable: document.getElementById('inventoryTable'),
-  userPanel: document.getElementById('userPanel'),
-  adminPanel: document.getElementById('adminPanel'),
+  userBadge: document.getElementById('userBadge'),
   requestUserName: document.getElementById('requestUserName'),
   requestMedicine: document.getElementById('requestMedicine'),
   requestQuantity: document.getElementById('requestQuantity'),
   sendRequestButton: document.getElementById('sendRequestButton'),
+  adminPanel: document.getElementById('adminPanel'),
+  userPanel: document.getElementById('userPanel'),
   adminMedicineSelect: document.getElementById('adminMedicineSelect'),
   newMedicineName: document.getElementById('newMedicineName'),
   newMedicineStock: document.getElementById('newMedicineStock'),
   addMedicineButton: document.getElementById('addMedicineButton'),
-  requestsTable: document.getElementById('requestsTable')
+  inventoryTable: document.getElementById('inventoryTable'),
+  requestsTable: document.getElementById('requestsTable'),
+  statTotal: document.getElementById('statTotal'),
+  statInStock: document.getElementById('statInStock'),
+  statOutOfStock: document.getElementById('statOutOfStock')
 };
 
-let inventory = storage.load('inventory', defaultMedicines);
-let requests = storage.load('requests', []);
 let currentUser = null;
+let inventory = [];
+let requests = [];
 
-function initialize() {
+function showAlert(message) {
+  alert(message);
+}
+
+function getUserDisplayName(userDoc, authUser) {
+  if (userDoc && userDoc.displayName) {
+    return userDoc.displayName;
+  }
+  if (authUser.displayName) {
+    return authUser.displayName;
+  }
+  return authUser.email ? authUser.email.split('@')[0] : 'User';
+}
+
+async function initialize() {
   elements.loginButton.addEventListener('click', handleLogin);
+  elements.signupButton.addEventListener('click', handleSignup);
+  elements.googleLoginButton.addEventListener('click', handleGoogleLogin);
   elements.logoutButton.addEventListener('click', handleLogout);
   elements.sendRequestButton.addEventListener('click', handleSendRequest);
   elements.addMedicineButton.addEventListener('click', handleAddMedicine);
-  elements.adminMedicineSelect.addEventListener('change', handleAdminMedicineChange);
-  renderDashboard();
+  elements.adminMedicineSelect.addEventListener('change', updateAdminMedicineField);
+
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      await loadUserProfile(user);
+      await openDashboard();
+    } else {
+      currentUser = null;
+      showLogin();
+    }
+  });
 }
 
-function handleLogin() {
-  const role = elements.loginRole.value;
-  const name = elements.loginName.value.trim() || (role === 'admin' ? 'Admin' : 'Field User');
-  currentUser = { role, name };
-  elements.loginSection.classList.add('hidden');
-  elements.dashboardSection.classList.remove('hidden');
-  elements.userBadge.textContent = `${name} • ${role.toUpperCase()}`;
-  elements.userBadge.classList.remove('hidden');
-  elements.requestUserName.value = name;
-  renderDashboard();
-}
-
-function handleLogout() {
-  currentUser = null;
+function showLogin() {
   elements.loginSection.classList.remove('hidden');
   elements.dashboardSection.classList.add('hidden');
   elements.userBadge.classList.add('hidden');
-  elements.loginName.value = '';
 }
 
-function handleAddMedicine() {
-  const name = elements.newMedicineName.value.trim();
-  const stock = Number(elements.newMedicineStock.value);
-  if (!name) {
-    alert('Enter a medicine name.');
+function showDashboard() {
+  elements.loginSection.classList.add('hidden');
+  elements.dashboardSection.classList.remove('hidden');
+  elements.userBadge.classList.remove('hidden');
+}
+
+async function handleLogin() {
+  const email = elements.loginEmail.value.trim();
+  const password = elements.loginPassword.value.trim();
+  if (!email || !password) {
+    showAlert('Enter both email and password.');
     return;
   }
-  if (!stock || stock <= 0) {
-    alert('Enter a valid stock quantity.');
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    showAlert(error.message || 'Login failed.');
+  }
+}
+
+async function handleSignup() {
+  const email = elements.loginEmail.value.trim();
+  const password = elements.loginPassword.value.trim();
+  if (!email || !password) {
+    showAlert('Enter both email and password.');
     return;
   }
-  const selection = elements.adminMedicineSelect.value;
-  if (selection !== 'new') {
-    const existing = inventory.find(item => item.id === Number(selection));
-    if (existing) {
-      existing.stock += stock;
-    }
-  } else {
-    const existing = inventory.find(item => item.name.toLowerCase() === name.toLowerCase());
-    if (existing) {
-      existing.stock += stock;
-    } else {
-      inventory.push({ id: Date.now(), name, stock });
-    }
+  try {
+    const credential = await createUserWithEmailAndPassword(auth, email, password);
+    await ensureUserDoc(credential.user);
+  } catch (error) {
+    showAlert(error.message || 'Signup failed.');
   }
-  storage.save('inventory', inventory);
-  elements.newMedicineName.value = '';
-  elements.newMedicineStock.value = '10';
+}
+
+async function handleGoogleLogin() {
+  try {
+    const result = await signInWithPopup(auth, googleProvider);
+    await ensureUserDoc(result.user);
+  } catch (error) {
+    showAlert(error.message || 'Google sign-in failed.');
+  }
+}
+
+async function handleLogout() {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    showAlert(error.message || 'Logout failed.');
+  }
+}
+
+async function ensureUserDoc(user) {
+  const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    const displayName = getUserDisplayName(null, user);
+    await setDoc(userRef, {
+      email: user.email || '',
+      displayName,
+      role: 'user',
+      createdAt: serverTimestamp()
+    });
+  }
+}
+
+async function loadUserProfile(user) {
+  const userRef = doc(db, 'users', user.uid);
+  const userSnap = await getDoc(userRef);
+  if (!userSnap.exists()) {
+    await ensureUserDoc(user);
+    currentUser = {
+      id: user.uid,
+      email: user.email,
+      displayName: getUserDisplayName(null, user),
+      role: 'user'
+    };
+    return;
+  }
+  const userData = userSnap.data();
+  currentUser = {
+    id: user.uid,
+    email: userData.email || user.email,
+    displayName: getUserDisplayName(userData, user),
+    role: userData.role || 'user'
+  };
+}
+
+async function openDashboard() {
+  showDashboard();
+  elements.userBadge.textContent = `${currentUser.displayName} • ${currentUser.role.toUpperCase()}`;
+  elements.requestUserName.value = currentUser.displayName;
+  await loadDashboardData();
+}
+
+async function loadDashboardData() {
+  await Promise.all([fetchInventory(), fetchRequests()]);
   renderDashboard();
 }
 
-function handleSendRequest() {
-  const medicineId = Number(elements.requestMedicine.value);
+async function fetchInventory() {
+  const medicinesQuery = query(collection(db, 'medicines'), orderBy('name'));
+  const snapshot = await getDocs(medicinesQuery);
+  inventory = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+}
+
+async function fetchRequests() {
+  const requestsQuery = currentUser.role === 'admin'
+    ? query(collection(db, 'requests'), orderBy('createdAt', 'desc'))
+    : query(collection(db, 'requests'), where('userId', '==', currentUser.id), orderBy('createdAt', 'desc'));
+  const snapshot = await getDocs(requestsQuery);
+  requests = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+}
+
+async function handleAddMedicine() {
+  const name = elements.newMedicineName.value.trim();
+  const stock = Number(elements.newMedicineStock.value);
+  const selection = elements.adminMedicineSelect.value;
+  if (!stock || stock <= 0) {
+    showAlert('Enter a valid stock quantity.');
+    return;
+  }
+  try {
+    if (selection === 'new') {
+      if (!name) {
+        showAlert('Enter a medicine name.');
+        return;
+      }
+      await addDoc(collection(db, 'medicines'), {
+        name,
+        stock,
+        createdAt: serverTimestamp()
+      });
+    } else {
+      const medicine = inventory.find(item => item.id === selection);
+      if (!medicine) {
+        showAlert('Choose a valid medicine option.');
+        return;
+      }
+      const medicineRef = doc(db, 'medicines', selection);
+      await updateDoc(medicineRef, {
+        stock: (medicine.stock || 0) + stock
+      });
+    }
+    elements.newMedicineName.value = '';
+    elements.newMedicineStock.value = '10';
+    await loadDashboardData();
+  } catch (error) {
+    showAlert(error.message || 'Failed to update inventory.');
+  }
+}
+
+async function handleSendRequest() {
+  const medicineId = elements.requestMedicine.value;
   const quantity = Number(elements.requestQuantity.value);
   if (!medicineId || quantity < 1) {
-    alert('Choose a medicine and enter a valid quantity.');
+    showAlert('Choose a medicine and enter a valid quantity.');
     return;
   }
   const medicine = inventory.find(item => item.id === medicineId);
-  requests.push({ id: Date.now(), user: currentUser.name, medicine: medicine.name, quantity, status: 'Pending' });
-  storage.save('requests', requests);
-  elements.requestQuantity.value = '1';
-  renderDashboard();
-}
-
-function approveRequest(requestId) {
-  const request = requests.find(item => item.id === requestId);
-  if (!request) return;
-  const medicine = inventory.find(item => item.name === request.medicine);
   if (!medicine) {
-    request.status = 'Rejected';
-    storage.save('requests', requests);
-    renderDashboard();
+    showAlert('Choose a valid medicine.');
     return;
   }
-  if (medicine.stock >= request.quantity) {
-    medicine.stock -= request.quantity;
-    request.status = 'Approved';
-  } else {
-    request.status = 'Rejected';
-    alert(`Not enough stock to approve ${request.quantity} units of ${medicine.name}.`);
+  try {
+    await addDoc(collection(db, 'requests'), {
+      userId: currentUser.id,
+      userEmail: currentUser.email,
+      userName: currentUser.displayName,
+      medicineId,
+      medicineName: medicine.name,
+      quantity,
+      status: 'Pending',
+      createdAt: serverTimestamp()
+    });
+    elements.requestQuantity.value = '1';
+    await loadDashboardData();
+  } catch (error) {
+    showAlert(error.message || 'Request failed.');
   }
-  storage.save('inventory', inventory);
-  storage.save('requests', requests);
-  renderDashboard();
 }
 
-function handleAdminMedicineChange() {
-  updateAdminMedicineField();
+async function approveRequest(requestId) {
+  try {
+    const requestRef = doc(db, 'requests', requestId);
+    const requestSnap = await getDoc(requestRef);
+    if (!requestSnap.exists()) {
+      showAlert('Request not found.');
+      return;
+    }
+    const requestData = requestSnap.data();
+    if (requestData.status !== 'Pending') {
+      showAlert('Request is already processed.');
+      return;
+    }
+    const medicineRef = doc(db, 'medicines', requestData.medicineId);
+    const medicineSnap = await getDoc(medicineRef);
+    if (!medicineSnap.exists()) {
+      showAlert('Medicine not found.');
+      return;
+    }
+    const medicine = medicineSnap.data();
+    await updateDoc(requestRef, {
+      status: 'Approved',
+      approvedAt: serverTimestamp()
+    });
+    await updateDoc(medicineRef, {
+      stock: Math.max((medicine.stock || 0) - requestData.quantity, 0)
+    });
+    await loadDashboardData();
+  } catch (error) {
+    showAlert(error.message || 'Unable to approve request.');
+  }
 }
 
 function updateAdminMedicineField() {
   const selection = elements.adminMedicineSelect.value;
-  const existing = inventory.find(item => item.id === Number(selection));
-  elements.newMedicineName.value = selection === 'new' ? '' : existing ? existing.name : '';
+  const medicine = inventory.find(item => item.id === selection);
+  elements.newMedicineName.value = selection === 'new' ? '' : medicine ? medicine.name : '';
   elements.newMedicineName.disabled = selection !== 'new';
 }
 
 function renderDashboard() {
   const totalMedicines = inventory.length;
-  const inStockCount = inventory.reduce((sum, item) => sum + item.stock, 0);
-  const outOfStockCount = inventory.filter(item => item.stock === 0).length;
+  const inStockCount = inventory.reduce((sum, item) => sum + Number(item.stock || 0), 0);
+  const outOfStockCount = inventory.filter(item => Number(item.stock || 0) === 0).length;
   elements.statTotal.textContent = totalMedicines;
   elements.statInStock.textContent = inStockCount;
   elements.statOutOfStock.textContent = outOfStockCount;
 
   elements.inventoryTable.innerHTML = inventory.map(item => {
-    const statusClass = item.stock > 0 ? 'status-available' : 'status-out';
-    const statusLabel = item.stock > 0 ? 'Available' : 'Stocked out';
-    return `<tr><td>${item.name}</td><td>${item.stock}</td><td class="${statusClass}">${statusLabel}</td></tr>`;
+    const stockValue = Number(item.stock || 0);
+    const statusClass = stockValue > 0 ? 'status-available' : 'status-out';
+    const statusLabel = stockValue > 0 ? 'Available' : 'Stocked out';
+    return `<tr><td>${item.name}</td><td>${stockValue}</td><td class="${statusClass}">${statusLabel}</td></tr>`;
   }).join('');
 
   elements.adminMedicineSelect.innerHTML = [
@@ -173,29 +344,34 @@ function renderDashboard() {
   updateAdminMedicineField();
 
   elements.requestMedicine.innerHTML = inventory.map(item => {
-    const disabled = item.stock === 0 ? 'disabled' : '';
-    return `<option value="${item.id}" ${disabled}>${item.name} ${item.stock === 0 ? '(Out of stock)' : ''}</option>`;
+    const stockValue = Number(item.stock || 0);
+    const disabled = stockValue === 0 ? 'disabled' : '';
+    return `<option value="${item.id}" ${disabled}>${item.name} ${stockValue === 0 ? '(Out of stock)' : ''}</option>`;
   }).join('');
 
-  if (currentUser) {
-    const isAdmin = currentUser.role === 'admin';
-    elements.userPanel.classList.toggle('hidden', isAdmin);
-    elements.adminPanel.classList.toggle('hidden', !isAdmin);
-    elements.requestsTable.innerHTML = requests.map(request => {
-      const statusClass = request.status === 'Approved' ? 'success' : request.status === 'Pending' ? 'pending' : 'warning';
-      const actionCell = currentUser.role === 'admin' && request.status === 'Pending'
-        ? `<button class="btn btn-secondary request-button" onclick="approveRequest(${request.id})">Approve</button>`
-        : '-';
-      return `
-        <tr>
-          <td>${request.user}</td>
-          <td>${request.medicine}</td>
-          <td>${request.quantity}</td>
-          <td><span class="badge-pill ${statusClass}">${request.status}</span></td>
-          <td>${actionCell}</td>
-        </tr>`;
-    }).join('');
+  if (!currentUser) {
+    elements.requestsTable.innerHTML = '';
+    return;
   }
+
+  const isAdmin = currentUser.role === 'admin';
+  elements.userPanel.classList.toggle('hidden', isAdmin);
+  elements.adminPanel.classList.toggle('hidden', !isAdmin);
+
+  elements.requestsTable.innerHTML = requests.map(request => {
+    const statusClass = request.status === 'Approved' ? 'success' : request.status === 'Pending' ? 'pending' : 'warning';
+    const actionCell = isAdmin && request.status === 'Pending'
+      ? `<button class="btn btn-secondary request-button" onclick="approveRequest('${request.id}')">Approve</button>`
+      : '-';
+    return `
+      <tr>
+        <td>${request.userName}</td>
+        <td>${request.medicineName}</td>
+        <td>${request.quantity}</td>
+        <td><span class="badge-pill ${statusClass}">${request.status}</span></td>
+        <td>${actionCell}</td>
+      </tr>`;
+  }).join('');
 }
 
 window.approveRequest = approveRequest;

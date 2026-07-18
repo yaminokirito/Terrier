@@ -1,0 +1,55 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    match /medicines/{medicineId} {
+      // Any signed-in user can read inventory.
+      allow read: if isSignedIn();
+
+      // Only admins can add or update stock.
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /requests/{requestId} {
+      // Any authenticated user can create a request for themselves.
+      allow create: if isSignedIn() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'Pending' &&
+        request.resource.data.quantity is int &&
+        request.resource.data.quantity > 0 &&
+        request.resource.data.medicineId is string &&
+        exists(/databases/$(database)/documents/medicines/$(request.resource.data.medicineId));
+
+      // Users can read their own requests, admins can read all requests.
+      allow read: if isSignedIn() &&
+        (isAdmin() || resource.data.userId == request.auth.uid);
+
+      // Only admins can approve or reject pending requests.
+      allow update: if isAdmin() &&
+        resource.data.status == 'Pending' &&
+        request.resource.data.status in ['Approved', 'Rejected'];
+
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      // Users can read and update only their own profile.
+      allow read, update: if isSignedIn() && request.auth.uid == userId;
+      allow create: if request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
