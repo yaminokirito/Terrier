@@ -20,6 +20,7 @@ import {
   addDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js';
 
@@ -34,6 +35,10 @@ const elements = {
   googleLoginButton: document.getElementById('googleLoginButton'),
   logoutButton: document.getElementById('logoutButton'),
   userBadge: document.getElementById('userBadge'),
+  deleteModal: document.getElementById('deleteModal'),
+  deleteModalMessage: document.getElementById('deleteModalMessage'),
+  deleteConfirmButton: document.getElementById('deleteConfirmButton'),
+  deleteCancelButton: document.getElementById('deleteCancelButton'),
   requestUserName: document.getElementById('requestUserName'),
   requestMedicine: document.getElementById('requestMedicine'),
   requestQuantity: document.getElementById('requestQuantity'),
@@ -56,6 +61,7 @@ let inventory = [];
 let requests = [];
 let inventoryUnsubscribe = null;
 let requestsUnsubscribe = null;
+let pendingDeleteMedicineId = null;
 
 function showAlert(message) {
   alert(message);
@@ -77,6 +83,8 @@ async function initialize() {
   elements.sendRequestButton.addEventListener('click', handleSendRequest);
   elements.addMedicineButton.addEventListener('click', handleAddMedicine);
   elements.adminMedicineSelect.addEventListener('change', updateAdminMedicineField);
+  elements.deleteCancelButton.addEventListener('click', closeDeleteModal);
+  elements.deleteConfirmButton.addEventListener('click', confirmDeleteMedicine);
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -275,6 +283,34 @@ async function handleAddMedicine() {
   }
 }
 
+function openDeleteModal(medicineId, medicineName) {
+  pendingDeleteMedicineId = medicineId;
+  elements.deleteModalMessage.textContent = `Delete "${medicineName}" from inventory? This cannot be undone.`;
+  elements.deleteModal.classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+  pendingDeleteMedicineId = null;
+  elements.deleteModal.classList.add('hidden');
+}
+
+async function confirmDeleteMedicine() {
+  if (!pendingDeleteMedicineId) {
+    closeDeleteModal();
+    return;
+  }
+
+  try {
+    await deleteDoc(doc(db, 'medicines', pendingDeleteMedicineId));
+    closeDeleteModal();
+    await loadDashboardData();
+  } catch (error) {
+    showAlert(error.message || 'Unable to delete medicine.');
+  }
+}
+
+window.openDeleteModal = openDeleteModal;
+
 async function handleSendRequest() {
   const medicineId = elements.requestMedicine.value;
   const quantity = Number(elements.requestQuantity.value);
@@ -357,7 +393,11 @@ function renderDashboard() {
     const stockValue = Number(item.stock || 0);
     const statusClass = stockValue > 0 ? 'status-available' : 'status-out';
     const statusLabel = stockValue > 0 ? 'Available' : 'Stocked out';
-    return `<tr><td>${item.name}</td><td>${stockValue}</td><td class="${statusClass}">${statusLabel}</td></tr>`;
+    const safeName = (item.name || '').replace(/'/g, "\\'");
+    const actionCell = currentUser && currentUser.role === 'admin'
+      ? `<button class="btn btn-secondary request-button" onclick="openDeleteModal('${item.id}', '${safeName}')">Delete</button>`
+      : '';
+    return `<tr><td>${item.name}</td><td>${stockValue}</td><td class="${statusClass}">${statusLabel}</td><td>${actionCell}</td></tr>`;
   }).join('');
 
   elements.adminMedicineSelect.innerHTML = [

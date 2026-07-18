@@ -59,6 +59,7 @@
                     <th>Medicine</th>
                     <th>Stock</th>
                     <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody id="inventoryTable"></tbody>
@@ -128,6 +129,18 @@
         </section>
       </section>
     </main>
+  </div>
+
+  <div id="deleteModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <h3>Delete medicine</h3>
+      <p id="deleteModalMessage">Are you sure you want to delete this medicine?</p>
+      <div class="modal-actions">
+        <button id="deleteCancelButton" class="btn btn-secondary">Cancel</button>
+        <button id="deleteConfirmButton" class="btn btn-danger">Delete</button>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="script.js"></script>
