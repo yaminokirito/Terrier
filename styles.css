@@ -361,19 +361,19 @@ td.status-out {
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 0.85rem;
+  font-weight: 700;
 }
 
 .badge-pill.success {
-  background: rgba(34, 197, 94, 0.14);
-  color: #bbf7d0;
+  background: #dcfce7;
+  color: #166534;
 }
 
 .badge-pill.warning {
-  background: rgba(249, 115, 22, 0.14);
-  color: #fed7aa;
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .badge-pill.pending {
-  background: rgba(59, 130, 246, 0.14);
-  color: #bfdbfe;
-}
+  background: #dbeafe;
+  color: #1e3a8a;
