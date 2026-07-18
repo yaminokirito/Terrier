@@ -2,8 +2,6 @@ import { firebaseConfig } from './firebaseConfig.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js';
 import {
   getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
   onAuthStateChanged,
@@ -33,10 +31,6 @@ const googleProvider = new GoogleAuthProvider();
 const elements = {
   loginSection: document.getElementById('loginSection'),
   dashboardSection: document.getElementById('dashboardSection'),
-  loginEmail: document.getElementById('loginEmail'),
-  loginPassword: document.getElementById('loginPassword'),
-  loginButton: document.getElementById('loginButton'),
-  signupButton: document.getElementById('signupButton'),
   googleLoginButton: document.getElementById('googleLoginButton'),
   logoutButton: document.getElementById('logoutButton'),
   userBadge: document.getElementById('userBadge'),
@@ -78,8 +72,6 @@ function getUserDisplayName(userDoc, authUser) {
 }
 
 async function initialize() {
-  elements.loginButton.addEventListener('click', handleLogin);
-  elements.signupButton.addEventListener('click', handleSignup);
   elements.googleLoginButton.addEventListener('click', handleGoogleLogin);
   elements.logoutButton.addEventListener('click', handleLogout);
   elements.sendRequestButton.addEventListener('click', handleSendRequest);
@@ -115,35 +107,6 @@ function showDashboard() {
   elements.loginSection.classList.add('hidden');
   elements.dashboardSection.classList.remove('hidden');
   elements.userBadge.classList.remove('hidden');
-}
-
-async function handleLogin() {
-  const email = elements.loginEmail.value.trim();
-  const password = elements.loginPassword.value.trim();
-  if (!email || !password) {
-    showAlert('Enter both email and password.');
-    return;
-  }
-  try {
-    await signInWithEmailAndPassword(auth, email, password);
-  } catch (error) {
-    showAlert(error.message || 'Login failed.');
-  }
-}
-
-async function handleSignup() {
-  const email = elements.loginEmail.value.trim();
-  const password = elements.loginPassword.value.trim();
-  if (!email || !password) {
-    showAlert('Enter both email and password.');
-    return;
-  }
-  try {
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    await ensureUserDoc(credential.user);
-  } catch (error) {
-    showAlert(error.message || 'Signup failed.');
-  }
 }
 
 async function handleGoogleLogin() {
@@ -215,18 +178,43 @@ async function loadDashboardData() {
   }
 
   const medicinesQuery = query(collection(db, 'medicines'), orderBy('name'));
-  inventoryUnsubscribe = onSnapshot(medicinesQuery, (snapshot) => {
-    inventory = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-    renderDashboard();
-  });
-
   const requestsQuery = currentUser.role === 'admin'
     ? query(collection(db, 'requests'), orderBy('createdAt', 'desc'))
     : query(collection(db, 'requests'), where('userId', '==', currentUser.id), orderBy('createdAt', 'desc'));
+
+  inventory = [];
+  requests = [];
+  renderDashboard();
+
+  inventoryUnsubscribe = onSnapshot(medicinesQuery, (snapshot) => {
+    inventory = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    renderDashboard();
+  }, (error) => {
+    console.error('Medicine snapshot failed:', error);
+  });
+
   requestsUnsubscribe = onSnapshot(requestsQuery, (snapshot) => {
     requests = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
     renderDashboard();
+  }, (error) => {
+    console.error('Request snapshot failed:', error);
   });
+
+  try {
+    const initialMedicineSnapshot = await getDocs(medicinesQuery);
+    inventory = initialMedicineSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+  } catch (error) {
+    console.error('Initial medicines load failed:', error);
+  }
+
+  try {
+    const initialRequestSnapshot = await getDocs(requestsQuery);
+    requests = initialRequestSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+  } catch (error) {
+    console.error('Initial requests load failed:', error);
+  }
+
+  renderDashboard();
 }
 
 async function handleAddMedicine() {
