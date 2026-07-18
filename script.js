@@ -18,6 +18,7 @@ import {
   query,
   where,
   orderBy,
+  onSnapshot,
   addDoc,
   setDoc,
   updateDoc,
@@ -59,6 +60,8 @@ const elements = {
 let currentUser = null;
 let inventory = [];
 let requests = [];
+let inventoryUnsubscribe = null;
+let requestsUnsubscribe = null;
 
 function showAlert(message) {
   alert(message);
@@ -89,6 +92,14 @@ async function initialize() {
       await openDashboard();
     } else {
       currentUser = null;
+      if (inventoryUnsubscribe) {
+        inventoryUnsubscribe();
+        inventoryUnsubscribe = null;
+      }
+      if (requestsUnsubscribe) {
+        requestsUnsubscribe();
+        requestsUnsubscribe = null;
+      }
       showLogin();
     }
   });
@@ -196,22 +207,26 @@ async function openDashboard() {
 }
 
 async function loadDashboardData() {
-  await Promise.all([fetchInventory(), fetchRequests()]);
-  renderDashboard();
-}
+  if (inventoryUnsubscribe) {
+    inventoryUnsubscribe();
+  }
+  if (requestsUnsubscribe) {
+    requestsUnsubscribe();
+  }
 
-async function fetchInventory() {
   const medicinesQuery = query(collection(db, 'medicines'), orderBy('name'));
-  const snapshot = await getDocs(medicinesQuery);
-  inventory = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
-}
+  inventoryUnsubscribe = onSnapshot(medicinesQuery, (snapshot) => {
+    inventory = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    renderDashboard();
+  });
 
-async function fetchRequests() {
   const requestsQuery = currentUser.role === 'admin'
     ? query(collection(db, 'requests'), orderBy('createdAt', 'desc'))
     : query(collection(db, 'requests'), where('userId', '==', currentUser.id), orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(requestsQuery);
-  requests = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+  requestsUnsubscribe = onSnapshot(requestsQuery, (snapshot) => {
+    requests = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    renderDashboard();
+  });
 }
 
 async function handleAddMedicine() {
