@@ -212,6 +212,14 @@ async function loadDashboardData() {
   try {
     const initialRequestSnapshot = await getDocs(requestsQuery);
     requests = initialRequestSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    if (requests.length === 0 && currentUser.email && currentUser.role !== 'admin') {
+      const fallbackQuery = query(collection(db, 'requests'), where('userEmail', '==', currentUser.email));
+      const fallbackSnapshot = await getDocs(fallbackQuery);
+      if (fallbackSnapshot.docs.length > 0) {
+        requests = fallbackSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+        console.warn('Used fallback request query by email for user', currentUser.email);
+      }
+    }
     sortRequests();
   } catch (error) {
     console.error('Initial requests load failed:', error);
