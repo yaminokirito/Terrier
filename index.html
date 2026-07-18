@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pest Solution Inventory</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <h1>PestGuard Inventory</h1>
+        <p>Medicine stock and request management</p>
+      </div>
+      <div id="userBadge" class="badge hidden"></div>
+    </header>
+
+    <main>
+      <section id="loginSection" class="card panel">
+        <h2>Login</h2>
+        <div class="field-group">
+          <label for="loginRole">Select role</label>
+          <select id="loginRole">
+            <option value="user">User</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <label for="loginName">Name</label>
+          <input id="loginName" type="text" placeholder="Enter your name" />
+        </div>
+        <button id="loginButton" class="btn btn-primary">Enter Dashboard</button>
+      </section>
+
+      <section id="dashboardSection" class="hidden">
+        <div class="dashboard-header">
+          <div>
+            <h2>Inventory Dashboard</h2>
+            <p>Monitor available and stocked-out medicines at a glance.</p>
+          </div>
+          <button id="logoutButton" class="btn btn-secondary">Logout</button>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <h3>Total medicines</h3>
+            <p id="statTotal">0</p>
+          </article>
+          <article class="stat-card">
+            <h3>Available stock</h3>
+            <p id="statInStock">0</p>
+          </article>
+          <article class="stat-card alert-card">
+            <h3>Stocked out</h3>
+            <p id="statOutOfStock">0</p>
+          </article>
+        </div>
+
+        <div class="dashboard-grid">
+          <section class="card inventory-card">
+            <div class="panel-heading">
+              <h3>Medicine Inventory</h3>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Medicine</th>
+                    <th>Stock</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="inventoryTable"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="card action-card">
+            <div id="userPanel" class="hidden">
+              <div class="panel-heading">
+                <h3>Request Medicine</h3>
+              </div>
+              <div class="field-group">
+                <label for="requestUserName">Your Name</label>
+                <input id="requestUserName" type="text" disabled />
+              </div>
+              <div class="field-group">
+                <label for="requestMedicine">Medicine</label>
+                <select id="requestMedicine"></select>
+              </div>
+              <div class="field-group">
+                <label for="requestQuantity">Quantity</label>
+                <input id="requestQuantity" type="number" min="1" value="1" />
+              </div>
+              <button id="sendRequestButton" class="btn btn-primary">Send Request</button>
+            </div>
+
+            <div id="adminPanel" class="hidden">
+              <div class="panel-heading">
+                <h3>Add Medicine</h3>
+              </div>
+              <div class="field-group">
+                <label for="adminMedicineSelect">Select medicine</label>
+                <select id="adminMedicineSelect"></select>
+              </div>
+              <div class="field-group">
+                <label for="newMedicineName">Medicine Name</label>
+                <input id="newMedicineName" type="text" placeholder="E.g. Fipronil" />
+              </div>
+              <div class="field-group">
+                <label for="newMedicineStock">Stock Quantity</label>
+                <input id="newMedicineStock" type="number" min="1" value="10" />
+              </div>
+              <button id="addMedicineButton" class="btn btn-primary">Add to Inventory</button>
+            </div>
+          </section>
+        </div>
+
+        <section class="card request-card">
+          <div class="panel-heading">
+            <h3>Pending Requests</h3>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Medicine</th>
+                  <th>Qty</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="requestsTable"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
