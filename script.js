@@ -195,6 +195,7 @@ async function loadDashboardData() {
 
   requestsUnsubscribe = onSnapshot(requestsQuery, (snapshot) => {
     requests = snapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    sortRequests();
     renderDashboard();
   }, (error) => {
     console.error('Request snapshot failed:', error);
@@ -210,11 +211,20 @@ async function loadDashboardData() {
   try {
     const initialRequestSnapshot = await getDocs(requestsQuery);
     requests = initialRequestSnapshot.docs.map(docSnap => ({ id: docSnap.id, ...docSnap.data() }));
+    sortRequests();
   } catch (error) {
     console.error('Initial requests load failed:', error);
   }
 
   renderDashboard();
+}
+
+function sortRequests() {
+  requests.sort((a, b) => {
+    const aTime = a.createdAt && a.createdAt.toMillis ? a.createdAt.toMillis() : a.createdAt || 0;
+    const bTime = b.createdAt && b.createdAt.toMillis ? b.createdAt.toMillis() : b.createdAt || 0;
+    return bTime - aTime;
+  });
 }
 
 async function handleAddMedicine() {
